@@ -1,0 +1,176 @@
+# TypeScript Word Puzzle Solver
+
+Solve 9-letter word puzzles and Spelling Bee word games using modern,
+idiomatically typed TypeScript:
+
+- [Nine Letter Word](http://nineletterword.tompaton.com/adevcrsoi/)
+- [Your Word Life](http://www.yourwiselife.com.au/games/9-letter-word/)
+- [NYT Spelling Bee](https://www.nytimes.com/puzzles/spelling-bee) (using
+  `--repeats`)
+- [Scientific American Spellements][spellements] (using `--repeats`)
+
+This project is a TypeScript implementation of the canonical Haskell word puzzle
+solver available at [haskell-wordpuzzle][haskell-repo].
+
+## Quick Start
+
+### Prerequisites
+
+- Node.js 20.0.0 or later (LTS recommended)
+- npm 10.0.0 or later
+
+### Installation
+
+Clone the repository and install dependencies:
+
+```bash
+git clone https://github.com/frankhjung/ts-wordpuzzle.git
+cd ts-wordpuzzle
+npm ci
+```
+
+### Basic Usage
+
+Run the solver directly using `tsx` or compile and run via Node.js:
+
+```bash
+# Show command-line help
+npx tsx src/cli.ts --help
+
+# Solve a 9-letter puzzle (letters: cadevrsoi, mandatory: c, min size: 7)
+npx tsx src/cli.ts -s 7 -l cadevrsoi
+
+# Solve in Spelling Bee mode with letter repetitions allowed
+npx tsx src/cli.ts -s 7 -l mitncao -r
+```
+
+Using the `Makefile` convenience wrapper:
+
+```bash
+# Run the default sample puzzle
+make run
+```
+
+## Command-Line Interface
+
+```text
+Usage: wordpuzzle [options]
+
+Solve 9-letter word puzzles and Spelling Bee games
+
+Options:
+  -s, --size <number>        Minimum word size between 4 and 9 (default: 4)
+  -l, --letters <string>     4-9 unique lowercase letters to form words
+  -d, --dictionary <path>    Path to dictionary file (default: "dictionary")
+  -r, --repeats              Allow letters to repeat (Spelling Bee mode)
+  -h, --help                 Display this help message
+  -v, --version              Display program version
+```
+
+### Validation Rules
+
+Command-line parameters are validated using applicative error accumulation.
+Instead of failing on the first error, all violations are reported together:
+
+- **Size:** Must be an integer between 4 and 9 inclusive.
+- **Letters:** Must contain between 4 and 9 unique ASCII lowercase letters.
+- **Mandatory Letter:** The first letter of `--letters` is designated as the
+  mandatory letter that must appear in every match.
+
+### Example Output
+
+Solving the 9-letter puzzle for `cadevrsoi` with minimum size 7:
+
+```text
+$ npx tsx src/cli.ts -s 7 -l cadevrsoi
+discover
+divorce
+divorces
+sidecar
+varicose
+viscera
+```
+
+## Dictionary Setup
+
+The default dictionary file is `./dictionary`. A dictionary can be prepared
+from the local operating system word list using Make:
+
+```bash
+make dictionary
+```
+
+This filters `/usr/share/dict/words` to retain only lowercase alphabetic words
+with four or more characters, while stripping Roman numerals.
+
+## Development Workflow
+
+Centralised development tasks are orchestrated via the root `Makefile`:
+
+<!-- prettier-ignore -->
+| Target | Command | Description |
+| :--- | :--- | :--- |
+| `make help` | `@awk ...` | Display available targets and descriptions |
+| `make format` | `npx prettier ...` | Format TypeScript and JSON files |
+| `make lint` | `npx eslint .` | Run ESLint static analysis |
+| `make check` | `npx tsc --noEmit` | Perform static type checking |
+| `make test` | `npx vitest run` | Execute unit and property tests |
+| `make build` | `npx tsc -p ...` | Compile TypeScript into `dist/` |
+| `make clean` | `rm -rf dist/ ...` | Remove build and coverage artefacts |
+| `make run` | `npx tsx ...` | Execute solver with sample input |
+
+## Execution Flow
+
+The sequence diagram below illustrates the end-to-end execution flow from
+command invocation and applicative validation to lazy dictionary streaming
+and solution output:
+
+```mermaid
+sequenceDiagram
+  autonumber
+  actor User
+  participant CLI as CLI Shell (src/cli.ts)
+  participant Parser as Parser (util.parseArgs)
+  participant Val as Validation (src/validation.ts)
+  participant Dict as Dictionary (node:readline)
+  participant Solver as Solver (src/solver.ts)
+  participant Pred as Predicates (src/predicates.ts)
+  participant Stdout as stdout
+
+  User->>CLI: wordpuzzle [options]
+  CLI->>Parser: parseArgs(args)
+  Parser-->>CLI: parsed options
+
+  CLI->>Val: validateCliArgs(options)
+  Val-->>CLI: Result<Puzzle, ValidationError[]>
+
+  alt Validation Failure
+    CLI->>User: report errors to stderr (exit 1)
+  else Validation Success
+    CLI->>Dict: createReadStream(dictionary)
+    CLI->>Solver: solve(puzzle, stream)
+    loop Each dictionary line
+      Solver->>Dict: next word
+      Dict-->>Solver: raw word
+      Solver->>Pred: matchesPuzzle(puzzle, word)
+      Pred-->>Solver: true / false
+      opt Valid match
+        Solver-->>CLI: yield ValidWord
+        CLI->>Stdout: print word
+      end
+    end
+    CLI->>User: exit code 0
+  end
+```
+
+## Specification and Architecture
+
+For comprehensive functional specifications, mathematical models, and property
+testing invariants, refer to:
+
+- [REQ-001: Word Puzzle Solver Specification][req-001]
+- [GLOSSARY.md](GLOSSARY.md)
+
+[haskell-repo]: https://github.com/frankhjung/haskell-wordpuzzle
+[req-001]: docs/REQ-001-wordpuzzle-specification.md
+[spellements]: https://www.scientificamerican.com/game/spellements/
