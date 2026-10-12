@@ -135,17 +135,19 @@ and avoids mixing business rules with filesystem or terminal concerns.
 Centralised development tasks are orchestrated via the root `Makefile`:
 
 <!-- prettier-ignore -->
-| Target | Command | Description |
-| :--- | :--- | :--- |
-| `make help` | `@awk ...` | Display available targets and descriptions |
-| `make format` | `npx prettier ...` | Format TypeScript and JSON files |
-| `make lint` | `npx eslint .` | Run ESLint static analysis |
-| `make check` | `npx tsc --noEmit` | Perform static type checking |
-| `make test` | `npx vitest run` | Execute unit and property tests |
-| `make build` | `npx tsc -p ...` | Compile TypeScript into `dist/` |
-| `make package` | `npm pack` | Package `dist/` into tarball |
-| `make clean` | `rm -rf dist/ ...` | Remove build and coverage artefacts |
-| `make run` | `npx tsx ...` | Execute solver with sample input |
+| Target            | Command            | Description                                |
+| :---------------- | :----------------- | :----------------------------------------- |
+| `make default`    | `format lint ...`  | Format, lint, build, and test              |
+| `make help`       | `@awk ...`         | Display available targets and descriptions |
+| `make format`     | `npx prettier ...` | Format all tracked source and config files |
+| `make lint`       | `npx eslint .`     | Run ESLint static analysis                 |
+| `make check`      | `npx tsc --noEmit` | Perform static type checking               |
+| `make test`       | `npx vitest run`   | Execute unit and property tests            |
+| `make build`      | `npx tsc -p ...`   | Compile TypeScript into `dist/`            |
+| `make package`    | `npm pack`         | Package `dist/` into tarball               |
+| `make clean`      | `rm -rf dist/ ...` | Remove build and coverage artefacts        |
+| `make dictionary` | `grep ...`         | Filter 4+ letter words from dict           |
+| `make run`        | `npx tsx ...`      | Execute solver with sample input           |
 
 ## Packaging and Distribution
 
@@ -222,43 +224,41 @@ then reports them together before returning.
 
 ```mermaid
 sequenceDiagram
-  autonumber
-  actor User
-  participant CLI as CLI Shell (src/cli.ts)
-  participant Parser as parseCliArgs()
-  participant Val as validateCliArgs()
-  participant Dict as Dictionary (node:readline)
-  participant Solver as solve()
-  participant Pred as matchesPuzzle()
-  participant Stdout as stdout
-  participant Stderr as stderr
+    autonumber
+    actor User
+    participant CLI as CLI Shell (src/cli.ts)
+    participant Parser as parseCliArgs()
+    participant Val as validateCliArgs()
+    participant Dict as Dictionary (node:readline)
+    participant Solver as solve()
+    participant Pred as matchesPuzzle()
+    participant Stdout as stdout
+    participant Stderr as stderr
 
-  User->>CLI: wordpuzzle [options]
-  CLI->>Parser: scan raw arguments
-  Parser-->>CLI: values + collected errors
-
-  alt Parse or validation errors
+    User->>CLI: wordpuzzle [options]
+    CLI->>Parser: scan raw arguments
+    Parser-->>CLI: values + collected errors
     CLI->>Val: validateCliArgs(values)
     Val-->>CLI: Result<Puzzle, ValidationError[]>
-    CLI->>Stderr: print all errors
-    CLI-->>User: exit code 1 or 2
-  else Valid input
-    CLI->>Val: validateCliArgs(values)
-    Val-->>CLI: Puzzle
-    CLI->>Dict: createReadStream(dictionary)
-    CLI->>Solver: solve(puzzle, stream)
-    loop Each dictionary line
-      Solver->>Dict: next word
-      Dict-->>Solver: raw word
-      Solver->>Pred: matchesPuzzle(puzzle, word)
-      Pred-->>Solver: true / false
-      opt Valid match
-        Solver-->>CLI: yield ValidWord
-        CLI->>Stdout: print word
-      end
+
+    alt Parse or validation errors
+        CLI->>Stderr: print all errors
+        CLI-->>User: exit code 1 or 2
+    else Valid input
+        CLI->>Dict: createReadStream(dictionary)
+        CLI->>Solver: solve(puzzle, stream)
+        loop Each dictionary line
+            Solver->>Dict: next word
+            Dict-->>Solver: raw word
+            Solver->>Pred: matchesPuzzle(puzzle, word)
+            Pred-->>Solver: true / false
+            opt Valid match
+                Solver-->>CLI: yield ValidWord
+                CLI->>Stdout: print word
+            end
+        end
+        CLI-->>User: exit code 0
     end
-    CLI-->>User: exit code 0
-  end
 ```
 
 ## Architecture at a Glance
@@ -268,26 +268,26 @@ keeps validation and puzzle matching deterministic and easy to test.
 
 ```mermaid
 flowchart TB
-  subgraph Shell[Effectful Shell]
-    CLI["runCli<br/>src/cli.ts"]
-    IO["stdout / stderr<br/>file streams"]
-  end
+    subgraph Shell[Effectful Shell]
+        CLI["runCli<br/>src/cli.ts"]
+        IO["stdout / stderr<br/>file streams"]
+    end
 
-  subgraph Core[Pure Core]
-    Parse[parseCliArgs]
-    Validate["validateCliArgs<br/>+ domain guards"]
-    Domain["Puzzle / branded types<br/>src/domain.ts"]
-    Solver["solve<br/>src/solver.ts"]
-    Pred["matchesPuzzle<br/>src/predicates.ts"]
-  end
+    subgraph Core[Pure Core]
+        Parse[parseCliArgs]
+        Validate["validateCliArgs<br/>+ domain guards"]
+        Domain["Puzzle / branded types<br/>src/domain.ts"]
+        Solver["solve<br/>src/solver.ts"]
+        Pred["matchesPuzzle<br/>src/predicates.ts"]
+    end
 
-  CLI --> Parse
-  Parse --> Validate
-  Validate --> Domain
-  Domain --> Solver
-  Solver --> Pred
-  CLI --> IO
-  Solver --> IO
+    CLI --> Parse
+    Parse --> Validate
+    Validate --> Domain
+    Domain --> Solver
+    Solver --> Pred
+    CLI --> IO
+    CLI --> Solver
 ```
 
 ## Project Structure

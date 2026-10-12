@@ -110,13 +110,7 @@ export function toValidWord(value: string): ValidWord {
 /**
  * Raw input contract for building a puzzle.
  */
-export interface CreatePuzzleParams {
-  readonly size: WordSize
-  readonly mandatory: MandatoryChar
-  readonly letters: LetterPool
-  readonly dictionary: string
-  readonly repeats: boolean
-}
+export type CreatePuzzleParams = Puzzle
 
 /**
  * Represents the validated, normalized word puzzle input contract.

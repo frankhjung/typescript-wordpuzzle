@@ -47,6 +47,24 @@ interface ParsedCliValues {
   version?: boolean
 }
 
+type StringOptionKey = "size" | "letters" | "dictionary"
+
+const VALUE_OPTIONS: Readonly<Record<string, StringOptionKey>> = {
+  "-s": "size",
+  "--size": "size",
+  "-l": "letters",
+  "--letters": "letters",
+  "-d": "dictionary",
+  "--dictionary": "dictionary",
+}
+
+/**
+ * Scans raw command-line arguments into parsed options and syntax errors.
+ * Pure function with referential transparency over the argument vector.
+ *
+ * @param args - Raw command-line argument strings.
+ * @returns Record containing parsed options and accumulated syntax errors.
+ */
 function parseCliArgs(args: readonly string[]): {
   readonly values: ParsedCliValues
   readonly errors: ValidationError[]
@@ -70,43 +88,17 @@ function parseCliArgs(args: readonly string[]): {
       continue
     }
 
-    if (arg === "--size" || arg === "-s") {
+    const optKey = VALUE_OPTIONS[arg]
+    if (optKey !== undefined) {
       const next = args[i + 1]
       if (next === undefined || next.startsWith("-")) {
+        const flagName = arg.startsWith("--") ? arg : `--${optKey}`
         errors.push({
           type: "unexpected_argument",
-          detail: "Option '--size' requires a value.",
+          detail: `Option '${flagName}' requires a value.`,
         })
       } else {
-        values.size = next
-        i += 1
-      }
-      continue
-    }
-
-    if (arg === "--letters" || arg === "-l") {
-      const next = args[i + 1]
-      if (next === undefined || next.startsWith("-")) {
-        errors.push({
-          type: "unexpected_argument",
-          detail: "Option '--letters' requires a value.",
-        })
-      } else {
-        values.letters = next
-        i += 1
-      }
-      continue
-    }
-
-    if (arg === "--dictionary" || arg === "-d") {
-      const next = args[i + 1]
-      if (next === undefined || next.startsWith("-")) {
-        errors.push({
-          type: "unexpected_argument",
-          detail: "Option '--dictionary' requires a value.",
-        })
-      } else {
-        values.dictionary = next
+        values[optKey] = next
         i += 1
       }
       continue
@@ -158,19 +150,14 @@ export async function runCli(
     repeats: values.repeats,
   })
 
-  if (!validationResult.ok) {
-    const allErrors = [...errors, ...validationResult.errors]
+  if (!validationResult.ok || errors.length > 0) {
+    const allErrors = validationResult.ok
+      ? errors
+      : [...errors, ...validationResult.errors]
     for (const error of allErrors) {
       stderr.write(`Error: ${formatValidationError(error)}\n`)
     }
     return errors.length > 0 ? 2 : 1
-  }
-
-  if (errors.length > 0) {
-    for (const error of errors) {
-      stderr.write(`Error: ${formatValidationError(error)}\n`)
-    }
-    return 2
   }
 
   const puzzle = validationResult.value

@@ -34,6 +34,26 @@ const puzzleArb = fc
 
 const candidateWordArb = fc.stringMatching(/^[a-z]{1,15}$/)
 
+const nonRepeatPuzzleArb = puzzleArb.map((p): Puzzle =>
+  createPuzzle({
+    size: p.size,
+    mandatory: p.mandatory,
+    letters: p.letters,
+    dictionary: p.dictionary,
+    repeats: false,
+  }),
+)
+
+const repeatPuzzleArb = puzzleArb.map((p): Puzzle =>
+  createPuzzle({
+    size: p.size,
+    mandatory: p.mandatory,
+    letters: p.letters,
+    dictionary: p.dictionary,
+    repeats: true,
+  }),
+)
+
 describe("QuickCheck-style property invariants", (): void => {
   it("satisfies mandatory letter invariant for matching words", (): void => {
     fc.assert(
@@ -66,16 +86,6 @@ describe("QuickCheck-style property invariants", (): void => {
   })
 
   it("satisfies no-duplicates invariant when repeats is false", (): void => {
-    const nonRepeatPuzzleArb = puzzleArb.map((p): Puzzle =>
-      createPuzzle({
-        size: p.size,
-        mandatory: p.mandatory,
-        letters: p.letters,
-        dictionary: p.dictionary,
-        repeats: false,
-      }),
-    )
-
     fc.assert(
       fc.property(
         nonRepeatPuzzleArb,
@@ -92,16 +102,6 @@ describe("QuickCheck-style property invariants", (): void => {
   })
 
   it("satisfies length bounds invariant when repeats is false", (): void => {
-    const nonRepeatPuzzleArb = puzzleArb.map((p): Puzzle =>
-      createPuzzle({
-        size: p.size,
-        mandatory: p.mandatory,
-        letters: p.letters,
-        dictionary: p.dictionary,
-        repeats: false,
-      }),
-    )
-
     fc.assert(
       fc.property(
         nonRepeatPuzzleArb,
@@ -118,16 +118,6 @@ describe("QuickCheck-style property invariants", (): void => {
   })
 
   it("satisfies minimum length invariant when repeats is true", (): void => {
-    const repeatPuzzleArb = puzzleArb.map((p): Puzzle =>
-      createPuzzle({
-        size: p.size,
-        mandatory: p.mandatory,
-        letters: p.letters,
-        dictionary: p.dictionary,
-        repeats: true,
-      }),
-    )
-
     fc.assert(
       fc.property(
         repeatPuzzleArb,

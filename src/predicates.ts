@@ -8,6 +8,11 @@ import { Puzzle } from "./domain.js"
 /**
  * Verifies that a word satisfies minimum and optional maximum length limits.
  * Pure function with referential transparency.
+ *
+ * @param min - Minimum allowed character length.
+ * @param max - Optional maximum allowed character length.
+ * @param word - Candidate word to test.
+ * @returns True if word length is within bounds, false otherwise.
  */
 function checkLength(
   min: number,
@@ -20,6 +25,10 @@ function checkLength(
 /**
  * Verifies that a word contains the mandatory character.
  * Pure function with referential transparency.
+ *
+ * @param mandatory - The mandatory single character.
+ * @param word - Candidate word to test.
+ * @returns True if word includes the mandatory character, false otherwise.
  */
 function hasMandatory(mandatory: string, word: string): boolean {
   return word.includes(mandatory)
@@ -28,6 +37,10 @@ function hasMandatory(mandatory: string, word: string): boolean {
 /**
  * Verifies that all characters in a word belong to the allowed letter pool.
  * Pure function with referential transparency.
+ *
+ * @param letters - Allowed letter pool string.
+ * @param word - Candidate word to test.
+ * @returns True if all characters are in the allowed pool, false otherwise.
  */
 function hasOnlyLetters(letters: string, word: string): boolean {
   for (const char of word) {
@@ -41,6 +54,9 @@ function hasOnlyLetters(letters: string, word: string): boolean {
 /**
  * Verifies that a word contains no duplicate characters.
  * Pure function with referential transparency.
+ *
+ * @param word - Candidate word to test.
+ * @returns True if all characters are unique, false otherwise.
  */
 function hasNoDuplicates(word: string): boolean {
   return new Set(word).size === word.length
@@ -49,19 +65,27 @@ function hasNoDuplicates(word: string): boolean {
 /**
  * Evaluates whether a word matches 9-letter word puzzle constraints.
  * Pure function with referential transparency.
+ *
+ * @param puzzle - Validated puzzle configuration.
+ * @param word - Candidate word to test.
+ * @returns True if word satisfies 9-letter constraints, false otherwise.
  */
 function nineLetters(puzzle: Puzzle, word: string): boolean {
   return (
     checkLength(puzzle.size, 9, word) &&
     hasMandatory(puzzle.mandatory, word) &&
-    hasNoDuplicates(word) &&
-    hasOnlyLetters(puzzle.letters, word)
+    hasOnlyLetters(puzzle.letters, word) &&
+    hasNoDuplicates(word)
   )
 }
 
 /**
  * Evaluates whether a word matches Spelling Bee (repeats allowed) constraints.
  * Pure function with referential transparency.
+ *
+ * @param puzzle - Validated puzzle configuration.
+ * @param word - Candidate word to test.
+ * @returns True if word satisfies Spelling Bee constraints, false otherwise.
  */
 function spellingBee(puzzle: Puzzle, word: string): boolean {
   return (

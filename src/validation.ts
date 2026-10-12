@@ -122,11 +122,7 @@ function validateLetters(
   }
 
   const pool = toLetterPool(trimmed)
-  const firstChar = trimmed[0]
-  if (firstChar === undefined) {
-    return err([{ type: "missing_letters" }])
-  }
-  const mandatory = toMandatoryChar(firstChar)
+  const mandatory = toMandatoryChar(trimmed.charAt(0))
 
   return ok({ letters: pool, mandatory })
 }
@@ -155,10 +151,7 @@ export function validateCliArgs(
     ])
   }
 
-  const dictionary =
-    args.dictionary !== undefined && args.dictionary.trim().length > 0
-      ? args.dictionary.trim()
-      : "dictionary"
+  const dictionary = args.dictionary?.trim() || "dictionary"
   const repeats = args.repeats ?? false
 
   try {

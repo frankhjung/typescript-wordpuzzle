@@ -28,8 +28,10 @@ lowercase entries before applying the puzzle predicates.
 
 ### 2.1 In Scope
 
-- **Command-line Interface (CLI):** Zero-dependency CLI built using Node.js
-  built-in `node:util` (`parseArgs`), running natively under Node.js 20+ ESM.
+- **Command-line Interface (CLI):** Zero-dependency CLI built with a custom
+  non-short-circuiting argument scanner (`parseCliArgs`), running natively
+  under Node.js 20+ ESM (superseding `node:util.parseArgs` to support
+  collective argument error accumulation).
 - **Applicative Input Validation:** Non-short-circuiting parameter validation
   accumulating all constraint violations into a discriminated `Result` type
   before reporting to `stderr`.
@@ -133,7 +135,7 @@ The codebase adheres strictly to the **Pure Core, Effectful Shell** paradigm:
 flowchart TD
     subgraph "Effectful Shell (CLI & I/O)"
         CLI["CLI Entrypoint (src/cli.ts)"]
-        PARSE["util.parseArgs"]
+        PARSE["CLI Parser (parseCliArgs)"]
         FS["node:readline File Stream"]
         OUT["process.stdout / process.stderr"]
     end
@@ -151,7 +153,8 @@ flowchart TD
     DOM --> SOLV
     SOLV --> PRED
     FS --> SOLV
-    SOLV --> OUT
+    SOLV --> CLI
+    CLI --> OUT
 ```
 
 - **`src/domain.ts`:** Immutable types, branded types, and domain constructors.
@@ -190,6 +193,8 @@ export interface Puzzle {
   readonly dictionary: string
   readonly repeats: boolean
 }
+
+export type CreatePuzzleParams = Puzzle
 ```
 
 ### 5.3 Error Handling as Data: Applicative Validation
@@ -234,14 +239,14 @@ wordpuzzle [-s|--size INT] (-l|--letters STRING)
 ### 6.2 Options Table
 
 <!-- prettier-ignore -->
-| Option | Short | Type | Default | Description |
-| :--- | :--- | :--- | :--- | :--- |
-| `--size` | `-s` | `number` | `4` | Minimum word size (4–9) |
-| `--letters` | `-l` | `string` | *(Req)* | 4–9 unique lowercase letters |
-| `--dictionary` | `-d` | `string` | `"dictionary"` | Path to word dictionary |
-| `--repeats` | `-r` | `boolean` | `false` | Allow repeated letters |
-| `--help` | `-h` | `boolean` | `false` | Display help message and exit |
-| `--version` | `-v` | `boolean` | `false` | Display version and exit |
+| Option         | Short | Type      | Default        | Description                   |
+| :------------- | :---- | :-------- | :------------- | :---------------------------- |
+| `--size`       | `-s`  | `number`  | `4`            | Minimum word size (4–9)       |
+| `--letters`    | `-l`  | `string`  | _(Req)_        | 4–9 unique lowercase letters  |
+| `--dictionary` | `-d`  | `string`  | `"dictionary"` | Path to word dictionary       |
+| `--repeats`    | `-r`  | `boolean` | `false`        | Allow repeated letters        |
+| `--help`       | `-h`  | `boolean` | `false`        | Display help message and exit |
+| `--version`    | `-v`  | `boolean` | `false`        | Display version and exit      |
 
 ### 6.3 Exit Codes
 
@@ -349,6 +354,16 @@ The CLI parser also enforces a deterministic error-collection policy: raw
 argument errors and validation errors are accumulated in sequence and reported
 before the process exits, ensuring the user sees all actionable details.
 
+### 10.1 Argument Scanner Superseding node:util.parseArgs
+
+While Node.js provides `node:util.parseArgs`, invoking it halts on the first
+unknown option or missing value by throwing a runtime `TypeError`. This
+prevents discovering subsequent syntax or validation faults. To satisfy the
+collective reporting mandate, the shell implements a table-driven scanner
+(`parseCliArgs`) that walks the argument vector, records all unknown flags,
+missing values, and positionals into `ValidationError` records, and combines
+them with applicative domain validation errors.
+
 ## 11. Architecture Decision Note: Minimal Predicate Interface
 
 **Status:** accepted
@@ -357,5 +372,10 @@ The predicate module exposes only `matchesPuzzle` as its public contract.
 Rule helpers and mode-specific composition remain internal implementation
 details, and the public matcher remains total, non-throwing, and deterministic
 with left-to-right short-circuit evaluation.
+
+In 9-letter mode, `hasOnlyLetters` is evaluated prior to `hasNoDuplicates`.
+This ensures candidate words containing non-alphabet characters are rejected
+through an allocation-free loop before incurring the heap allocation of a `Set`
+for duplicate letter checks.
 
 [haskell-repo]: https://github.com/frankhjung/haskell-wordpuzzle
