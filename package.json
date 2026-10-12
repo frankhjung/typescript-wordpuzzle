@@ -3,15 +3,21 @@
   "version": "0.1.0",
   "description": "Solve 9-letter word puzzles and Spelling Bee games",
   "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "bin": {
     "wordpuzzle": "./dist/cli.js"
   },
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "format": "prettier --write .",
     "lint": "eslint .",
     "check": "tsc --noEmit",
     "test": "vitest run",
     "build": "tsc -p tsconfig.build.json",
+    "package": "npm pack",
     "start": "node dist/cli.js"
   },
   "devDependencies": {

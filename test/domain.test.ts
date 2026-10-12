@@ -37,6 +37,27 @@ describe("domain models and constructors", (): void => {
     expect(Object.isFrozen(puzzle)).toBe(true)
   })
 
+  it("rejects invalid branded constructors", (): void => {
+    expect((): void => {
+      toWordSize(3)
+    }).toThrow(/between 4 and 9/)
+    expect((): void => {
+      toLetterPool("abc")
+    }).toThrow(/between 4 and 9/)
+    expect((): void => {
+      toMandatoryChar("ab")
+    }).toThrow(/single lowercase/)
+    expect((): void => {
+      createPuzzle({
+        size: toWordSize(7),
+        mandatory: toMandatoryChar("d"),
+        letters: toLetterPool("cadevrsoi"),
+        dictionary: "dictionary",
+        repeats: false,
+      })
+    }).toThrow(/first letter in the letter pool/)
+  })
+
   it("constructs success and failure Result values", (): void => {
     const successResult = ok(123)
     const failureResult = err<number, ValidationError>([

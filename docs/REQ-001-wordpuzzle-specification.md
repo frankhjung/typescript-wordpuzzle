@@ -20,7 +20,9 @@ Python, Clojure, Kotlin, and Flutter.
 
 The solver reads candidate words from a line-delimited dictionary file and
 filters words according to puzzle rules in $O(1)$ constant memory by using
-lazy asynchronous line streaming.
+lazy asynchronous line streaming. Each dictionary line is trimmed and then
+matched exactly as supplied; the implementation does not normalise or
+lowercase entries before applying the puzzle predicates.
 
 ## 2. Scope and Non-Goals
 
@@ -152,8 +154,8 @@ flowchart TD
 - **`src/domain.ts`:** Immutable types, branded types, and domain constructors.
 - **`src/validation.ts`:** Pure applicative parameter validation returning
   discriminated `Result` values.
-- **`src/predicates.ts`:** Pure predicate combinators (`checkLength`,
-  `hasMandatory`, `nineLetters`, `spellingBee`).
+- **`src/predicates.ts`:** Pure matching rules with a minimal public matcher
+  interface (`matchesPuzzle`) and internal rule composition.
 - **`src/solver.ts`:** Pure async generator / transformer filtering an
   `AsyncIterable<string>` of words against a validated `Puzzle`.
 - **`src/cli.ts`:** Imperative shell reading arguments, invoking validation,
@@ -205,6 +207,7 @@ export type ValidationError =
       readonly reason: string
     }
   | { readonly type: "missing_letters" }
+  | { readonly type: "invalid_puzzle"; readonly detail: string }
   | { readonly type: "unexpected_argument"; readonly detail: string }
 
 export type Result<T, E> =
@@ -213,7 +216,7 @@ export type Result<T, E> =
 ```
 
 Applicative validation evaluates all CLI parameters simultaneously and
-accumulates all failures into `Result<Puzzle, readonly ValidationError[]>`.
+accumulates all failures into `Result<Puzzle, ValidationError>`.
 
 ## 6. Command-Line Interface (CLI) Contract
 
@@ -260,8 +263,8 @@ All exported functions must include complete TSDoc documentation with:
 Unit tests cover:
 
 - Parameter validation accumulation (single and multiple simultaneous errors).
-- Predicate verification for `nineLetters`, `spellingBee`, `hasMandatory`,
-  and `checkLength`.
+- Predicate behaviour verification through the public `matchesPuzzle`
+  contract.
 - CLI execution and exit codes via smoke tests.
 
 ### 8.2 Generative Property Tests (fast-check)
@@ -295,12 +298,14 @@ pseudo-random test cases:
 The root `Makefile` orchestrates development using defensive GNU Make idioms:
 
 - `help`: Self-documenting target descriptions (`make help`).
-- `format`: Format source files using Prettier (`npx prettier --write .`).
+- `format`: Format source and test files using Prettier
+  (`npx prettier --write "src/**/*.ts" "test/**/*.ts" "*.json"`).
 - `lint`: Run ESLint static analysis (`npx eslint .`).
 - `check`: Type-check without code emission (`npx tsc --noEmit`).
 - `build`: Compile TypeScript distribution (`npx tsc -p tsconfig.build.json`).
 - `test`: Execute Vitest unit and fast-check property tests (`npx vitest run`).
-- `clean`: Remove build outputs (`dist/`, `coverage/`).
+- `clean`: Remove build outputs and package artefacts
+  (`dist/`, `coverage/`, `*.tgz`).
 - `dictionary`: Generate filtered 4+ letter words from `/usr/share/dict/words`.
 - `run`: Execute solver with sample input (`cadevrsoi`).
 
@@ -315,5 +320,26 @@ A GitHub Actions workflow (`.github/workflows/build.yml`) runs on push and PR:
 5. Executes full test suite with coverage (`npx vitest run --coverage`).
 6. Executes smoke test with example puzzle (`npx tsx src/cli.ts ...`).
 7. Compiles production distribution (`npx tsc -p tsconfig.build.json`).
+
+## 10. Architecture Decision Note: Minimal Validation Boundary
+
+**Status:** accepted
+
+The validation boundary exposes a single public entrypoint,
+`validateCliArgs`, for converting raw CLI input into `Result<Puzzle,
+ValidationError>`. Internal sub-validators remain module-private, and domain
+constructor invariant failures are converted into structured
+`invalid_puzzle` errors with a stable external message. Validation error
+ordering is deterministic (`invalid_size` before `invalid_letters`, then
+puzzle-level errors) so diagnostics and tests remain stable.
+
+## 11. Architecture Decision Note: Minimal Predicate Interface
+
+**Status:** accepted
+
+The predicate module exposes only `matchesPuzzle` as its public contract.
+Rule helpers and mode-specific composition remain internal implementation
+details, and the public matcher remains total, non-throwing, and deterministic
+with left-to-right short-circuit evaluation.
 
 [haskell-repo]: https://github.com/frankhjung/haskell-wordpuzzle

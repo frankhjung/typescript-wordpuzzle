@@ -19,6 +19,9 @@ export type ValidWord = string & { readonly __brand: unique symbol }
  * ```
  */
 export function toWordSize(value: number): WordSize {
+  if (!Number.isInteger(value) || value < 4 || value > 9) {
+    throw new RangeError("Word size must be an integer between 4 and 9.")
+  }
   return value as WordSize
 }
 
@@ -34,7 +37,26 @@ export function toWordSize(value: number): WordSize {
  * ```
  */
 export function toLetterPool(value: string): LetterPool {
-  return value as LetterPool
+  if (typeof value !== "string") {
+    throw new TypeError("Letter pool must be a string.")
+  }
+
+  const trimmed = value.trim()
+  if (trimmed.length < 4 || trimmed.length > 9) {
+    throw new RangeError("Letter pool must contain between 4 and 9 letters.")
+  }
+
+  if (!/^[a-z]+$/.test(trimmed)) {
+    throw new TypeError(
+      "Letter pool must contain only lowercase ASCII letters (a-z).",
+    )
+  }
+
+  if (new Set(trimmed).size !== trimmed.length) {
+    throw new RangeError("Letter pool must not contain duplicate letters.")
+  }
+
+  return trimmed as LetterPool
 }
 
 /**
@@ -49,6 +71,16 @@ export function toLetterPool(value: string): LetterPool {
  * ```
  */
 export function toMandatoryChar(value: string): MandatoryChar {
+  if (
+    typeof value !== "string" ||
+    value.length !== 1 ||
+    !/^[a-z]$/.test(value)
+  ) {
+    throw new TypeError(
+      "Mandatory character must be a single lowercase ASCII letter.",
+    )
+  }
+
   return value as MandatoryChar
 }
 
@@ -64,10 +96,21 @@ export function toMandatoryChar(value: string): MandatoryChar {
  * ```
  */
 export function toValidWord(value: string): ValidWord {
+  if (typeof value !== "string" || value.length === 0) {
+    throw new TypeError("Valid word must be a non-empty string.")
+  }
+
+  if (!/^[a-z]+$/.test(value)) {
+    throw new TypeError("Valid word must contain only lowercase ASCII letters.")
+  }
+
   return value as ValidWord
 }
 
-export interface Puzzle {
+/**
+ * Raw input contract for building a puzzle.
+ */
+export interface CreatePuzzleParams {
   readonly size: WordSize
   readonly mandatory: MandatoryChar
   readonly letters: LetterPool
@@ -75,7 +118,10 @@ export interface Puzzle {
   readonly repeats: boolean
 }
 
-export interface CreatePuzzleParams {
+/**
+ * Represents the validated, normalized word puzzle input contract.
+ */
+export interface Puzzle {
   readonly size: WordSize
   readonly mandatory: MandatoryChar
   readonly letters: LetterPool
@@ -101,30 +147,67 @@ export interface CreatePuzzleParams {
  * ```
  */
 export function createPuzzle(params: CreatePuzzleParams): Puzzle {
+  const size = toWordSize(params.size)
+  const mandatory = toMandatoryChar(params.mandatory)
+  const letters = toLetterPool(params.letters)
+
+  if (mandatory !== letters[0]) {
+    throw new RangeError(
+      "Mandatory character must be the first letter in the letter pool.",
+    )
+  }
+
   return Object.freeze({
-    size: params.size,
-    mandatory: params.mandatory,
-    letters: params.letters,
-    dictionary: params.dictionary,
+    size,
+    mandatory,
+    letters,
+    dictionary: params.dictionary.trim() || "dictionary",
     repeats: params.repeats,
   })
 }
 
+/**
+ * Explains why a puzzle configuration or input payload failed domain
+ * validation. Each member captures a specific error category and the
+ * contextual data needed to explain the failure to callers or to report it
+ * in logs.
+ */
 export type ValidationError =
   | {
+      /** Word size was outside the permitted range for a puzzle. */
       readonly type: "invalid_size"
       readonly min: number
       readonly max: number
       readonly actual: number
     }
   | {
+      /** The letter pool was malformed or contained invalid characters. */
       readonly type: "invalid_letters"
       readonly actual: string
       readonly reason: string
     }
-  | { readonly type: "missing_letters" }
-  | { readonly type: "unexpected_argument"; readonly detail: string }
+  | {
+      /** A required letter was missing from the provided puzzle input. */
+      readonly type: "missing_letters"
+    }
+  | {
+      /** A puzzle invariant was violated after validation and normalization. */
+      readonly type: "invalid_puzzle"
+      readonly detail: string
+    }
+  | {
+      /**
+       * An unexpected argument shape or unsupported input value was
+       * supplied.
+       */
+      readonly type: "unexpected_argument"
+      readonly detail: string
+    }
 
+/**
+ * Represents the outcome of an operation that can succeed with a value or fail
+ * with one or more domain-specific errors.
+ */
 export type Result<T, E> =
   | { readonly ok: true; readonly value: T }
   | { readonly ok: false; readonly errors: readonly E[] }

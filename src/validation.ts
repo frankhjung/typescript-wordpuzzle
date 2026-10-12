@@ -36,7 +36,7 @@ export interface RawCliArgs {
  * const res = validateWordSize(7)
  * ```
  */
-export function validateWordSize(
+function validateWordSize(
   raw: number | string | undefined,
 ): Result<WordSize, ValidationError> {
   if (raw === undefined) {
@@ -81,7 +81,7 @@ export interface ValidatedLetters {
  * const res = validateLetters("cadevrsoi")
  * ```
  */
-export function validateLetters(
+function validateLetters(
   raw: string | undefined,
 ): Result<ValidatedLetters, ValidationError> {
   if (raw === undefined || raw.trim().length === 0) {
@@ -161,15 +161,24 @@ export function validateCliArgs(
       : "dictionary"
   const repeats = args.repeats ?? false
 
-  return ok(
-    createPuzzle({
-      size: sizeResult.value,
-      mandatory: lettersResult.value.mandatory,
-      letters: lettersResult.value.letters,
-      dictionary,
-      repeats,
-    }),
-  )
+  try {
+    return ok(
+      createPuzzle({
+        size: sizeResult.value,
+        mandatory: lettersResult.value.mandatory,
+        letters: lettersResult.value.letters,
+        dictionary,
+        repeats,
+      }),
+    )
+  } catch {
+    return err([
+      {
+        type: "invalid_puzzle",
+        detail: "Puzzle configuration violated domain invariants.",
+      },
+    ])
+  }
 }
 
 /**
@@ -194,6 +203,8 @@ export function formatValidationError(error: ValidationError): string {
       return `Invalid letters '${error.actual}': ${error.reason}`
     case "missing_letters":
       return "Missing required option: --letters (-l)."
+    case "invalid_puzzle":
+      return `Invalid puzzle configuration: ${error.detail}`
     case "unexpected_argument":
       return `Unexpected argument: ${error.detail}`
     default:

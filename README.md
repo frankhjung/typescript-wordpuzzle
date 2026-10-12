@@ -24,8 +24,8 @@ solver available at [haskell-wordpuzzle][haskell-repo].
 Clone the repository and install dependencies:
 
 ```bash
-git clone https://github.com/frankhjung/ts-wordpuzzle.git
-cd ts-wordpuzzle
+git clone https://github.com/frankhjung/typescript-wordpuzzle.git wordpuzzle
+cd wordpuzzle
 npm ci
 ```
 
@@ -93,15 +93,17 @@ viscera
 
 ## Dictionary Setup
 
-The default dictionary file is `./dictionary`. A dictionary can be prepared
-from the local operating system word list using Make:
+The default dictionary file is `./dictionary`. A dictionary can be prepared from
+the local operating system word list using Make:
 
 ```bash
 make dictionary
 ```
 
 This filters `/usr/share/dict/words` to retain only lowercase alphabetic words
-with four or more characters, while stripping Roman numerals.
+with four or more characters, while stripping Roman numerals. Dictionary
+entries are processed exactly as they appear in the file; the solver does not
+normalise or lowercase them before matching.
 
 ## Development Workflow
 
@@ -116,14 +118,81 @@ Centralised development tasks are orchestrated via the root `Makefile`:
 | `make check` | `npx tsc --noEmit` | Perform static type checking |
 | `make test` | `npx vitest run` | Execute unit and property tests |
 | `make build` | `npx tsc -p ...` | Compile TypeScript into `dist/` |
+| `make package` | `npm pack` | Package `dist/` into tarball |
 | `make clean` | `rm -rf dist/ ...` | Remove build and coverage artefacts |
 | `make run` | `npx tsx ...` | Execute solver with sample input |
+
+## Packaging and Distribution
+
+The compiled JavaScript artefacts in `dist/` can be bundled into a standalone
+distribution tarball named `wordpuzzle`.
+
+### Creating the Package
+
+Compile the TypeScript source code and package the `dist/` directory using the
+`Makefile`:
+
+```bash
+make package
+```
+
+This target runs `make build` to compile the TypeScript distribution into
+`dist/` and runs `npm pack` to generate `wordpuzzle-<version>.tgz` (for example,
+`wordpuzzle-0.1.0.tgz`).
+
+Alternatively, build and pack directly using npm:
+
+```bash
+npm run build
+npm pack
+```
+
+### Executing the Package
+
+Once compiled and packaged, the `wordpuzzle` CLI can be executed in several
+ways:
+
+1. **Direct execution from `dist/` via Node.js:**
+
+   ```bash
+   node dist/cli.js -s 7 -l cadevrsoi
+   ```
+
+2. **Via the npm start script:**
+
+   ```bash
+   npm start -- -s 7 -l cadevrsoi
+   ```
+
+3. **Installation to user's local `~/.local/bin` directory:**
+
+   ```bash
+   # Install to ~/.local/bin
+   npm install -g --prefix ~/.local ./wordpuzzle-0.1.0.tgz
+   wordpuzzle -s 7 -l cadevrsoi
+   ```
+
+   _(Ensure `~/.local/bin` is in your shell's `PATH`)._
+
+4. **System-wide global installation:**
+
+   ```bash
+   npm install -g ./wordpuzzle-0.1.0.tgz
+   wordpuzzle -s 7 -l cadevrsoi
+   ```
+
+5. **Local symlink for development:**
+
+   ```bash
+   npm link
+   wordpuzzle -s 7 -l cadevrsoi
+   ```
 
 ## Execution Flow
 
 The sequence diagram below illustrates the end-to-end execution flow from
-command invocation and applicative validation to lazy dictionary streaming
-and solution output:
+command invocation and applicative validation to lazy dictionary streaming and
+solution output:
 
 ```mermaid
 sequenceDiagram

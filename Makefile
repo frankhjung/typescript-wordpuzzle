@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := default
-.PHONY: help format lint check test build clean dictionary run
+.PHONY: help format lint check test build package clean dictionary run
 
 SHELL := bash
 .SHELLFLAGS := -euo pipefail -c
@@ -15,8 +15,8 @@ help: ## Display available targets and descriptions
 
 default: format lint build test	## Default: format, lint, build and test
 
-format: ## Format source and test files using Prettier
-	npx prettier --write "src/**/*.ts" "test/**/*.ts" "*.json"
+format: ## Format all tracked source and config files using Prettier
+	npx prettier --write .
 
 lint: ## Run ESLint static analysis
 	npx eslint .
@@ -30,8 +30,11 @@ test: ## Execute unit and fast-check property tests
 build: check ## Compile TypeScript to JavaScript distribution
 	npx tsc -p tsconfig.build.json
 
+package: build ## Package dist/ build artefacts into wordpuzzle tarball
+	npm pack
+
 clean: ## Remove build outputs and temporary artefacts
-	rm -rf dist coverage
+	rm -rf dist coverage *.tgz
 
 dictionary: ## Extract 4+ letter words from /usr/share/dict/words
 ifeq (,$(wildcard /usr/share/dict/words))

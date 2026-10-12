@@ -10,7 +10,8 @@ import { matchesPuzzle } from "./predicates.js"
  * Pure async generator with referential transparency over the input stream.
  *
  * @param puzzle - Validated puzzle configuration.
- * @param lines - Asynchronous iterable stream of dictionary lines.
+ * @param lines - Asynchronous iterable stream of dictionary lines; each line is
+ *   trimmed but otherwise matched exactly as supplied.
  * @returns Asynchronous iterable yielding valid matching words.
  * @example
  * ```ts

@@ -1,13 +1,5 @@
 import { describe, expect, it } from "vitest"
-import {
-  checkLength,
-  hasMandatory,
-  hasNoDuplicates,
-  hasOnlyLetters,
-  matchesPuzzle,
-  nineLetters,
-  spellingBee,
-} from "../src/predicates.js"
+import { matchesPuzzle } from "../src/predicates.js"
 import {
   createPuzzle,
   toLetterPool,
@@ -32,48 +24,25 @@ describe("predicate combinators", (): void => {
     repeats: true,
   })
 
-  it("evaluates checkLength correctly", (): void => {
-    expect(checkLength(4, 9, "cat")).toBe(false)
-    expect(checkLength(4, 9, "card")).toBe(true)
-    expect(checkLength(4, 9, "cadevrsoi")).toBe(true)
-    expect(checkLength(4, 9, "extravagant")).toBe(false)
-    expect(checkLength(4, undefined, "extravagant")).toBe(true)
-  })
-
-  it("evaluates hasMandatory accurately", (): void => {
-    expect(hasMandatory("c", "cadevrsoi")).toBe(true)
-    expect(hasMandatory("c", "adverse")).toBe(false)
-  })
-
-  it("evaluates hasOnlyLetters properly", (): void => {
-    expect(hasOnlyLetters("cadevrsoi", "discover")).toBe(true)
-    expect(hasOnlyLetters("cadevrsoi", "python")).toBe(false)
-  })
-
-  it("evaluates hasNoDuplicates strictly", (): void => {
-    expect(hasNoDuplicates("discover")).toBe(true)
-    expect(hasNoDuplicates("divorces")).toBe(true)
-    expect(hasNoDuplicates("letters")).toBe(false)
-  })
-
-  it("evaluates nineLetters predicate constraints", (): void => {
-    expect(nineLetters(samplePuzzle, "discover")).toBe(true)
-    expect(nineLetters(samplePuzzle, "code")).toBe(false) // length < 7
-    expect(nineLetters(samplePuzzle, "adverse")).toBe(false) // missing 'c'
-    expect(nineLetters(samplePuzzle, "covaries")).toBe(true)
-    expect(nineLetters(samplePuzzle, "cocoon")).toBe(false) // has duplicates
-  })
-
-  it("evaluates spellingBee predicate constraints", (): void => {
-    expect(spellingBee(spellingBeePuzzle, "commotion")).toBe(true)
-    // Missing 'm'
-    expect(spellingBee(spellingBeePuzzle, "contain")).toBe(false)
-    expect(spellingBee(spellingBeePuzzle, "cat")).toBe(false) // length < 4
-  })
-
-  it("dispatches matchesPuzzle based on repeat mode", (): void => {
+  it("evaluates 9-letter constraints through matchesPuzzle", (): void => {
     expect(matchesPuzzle(samplePuzzle, "discover")).toBe(true)
+    expect(matchesPuzzle(samplePuzzle, "code")).toBe(false)
+    expect(matchesPuzzle(samplePuzzle, "adverse")).toBe(false)
+    expect(matchesPuzzle(samplePuzzle, "covaries")).toBe(true)
     expect(matchesPuzzle(samplePuzzle, "cocoon")).toBe(false)
+  })
+
+  it("evaluates repeat-mode constraints through matchesPuzzle", (): void => {
     expect(matchesPuzzle(spellingBeePuzzle, "commotion")).toBe(true)
+    expect(matchesPuzzle(spellingBeePuzzle, "contain")).toBe(false)
+    expect(matchesPuzzle(spellingBeePuzzle, "cat")).toBe(false)
+  })
+
+  it("remains total and non-throwing for arbitrary words", (): void => {
+    expect((): boolean => matchesPuzzle(samplePuzzle, "")).not.toThrow()
+    expect((): boolean => matchesPuzzle(samplePuzzle, "Ωmega")).not.toThrow()
+    expect((): boolean =>
+      matchesPuzzle(spellingBeePuzzle, "a\nb\tc"),
+    ).not.toThrow()
   })
 })

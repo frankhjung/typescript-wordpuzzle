@@ -1,63 +1,64 @@
 import { describe, expect, it } from "vitest"
-import {
-  formatValidationError,
-  validateCliArgs,
-  validateLetters,
-  validateWordSize,
-} from "../src/validation.js"
+import { formatValidationError, validateCliArgs } from "../src/validation.js"
 
 describe("applicative validation", (): void => {
-  it("validates valid word sizes", (): void => {
-    const res4 = validateWordSize(4)
-    const res9 = validateWordSize(9)
-    const resString = validateWordSize("7")
-    const resDefault = validateWordSize(undefined)
+  it("validates a complete and valid CLI argument set", (): void => {
+    const res = validateCliArgs({
+      size: "7",
+      letters: "cadevrsoi",
+      dictionary: "dictionary",
+      repeats: false,
+    })
 
-    expect(res4.ok && res4.value).toBe(4)
-    expect(res9.ok && res9.value).toBe(9)
-    expect(resString.ok && resString.value).toBe(7)
-    expect(resDefault.ok && resDefault.value).toBe(4)
-  })
-
-  it("rejects invalid word sizes", (): void => {
-    const resTooSmall = validateWordSize(3)
-    const resTooLarge = validateWordSize(10)
-    const resNotInt = validateWordSize(5.5)
-    const resInvalidStr = validateWordSize("abc")
-
-    expect(resTooSmall.ok).toBe(false)
-    expect(resTooLarge.ok).toBe(false)
-    expect(resNotInt.ok).toBe(false)
-    expect(resInvalidStr.ok).toBe(false)
-  })
-
-  it("validates valid letter pools", (): void => {
-    const res = validateLetters("cadevrsoi")
     expect(res.ok).toBe(true)
     if (res.ok) {
+      expect(res.value.size).toBe(7)
       expect(res.value.letters).toBe("cadevrsoi")
       expect(res.value.mandatory).toBe("c")
+      expect(res.value.dictionary).toBe("dictionary")
+      expect(res.value.repeats).toBe(false)
     }
   })
 
-  it("rejects missing letter pool", (): void => {
-    const resUndefined = validateLetters(undefined)
-    const resEmpty = validateLetters("")
+  it("defaults optional size and dictionary values", (): void => {
+    const res = validateCliArgs({
+      letters: "cadevrsoi",
+      dictionary: "   ",
+    })
 
-    expect(resUndefined.ok).toBe(false)
-    expect(resEmpty.ok).toBe(false)
+    expect(res.ok).toBe(true)
+    if (res.ok) {
+      expect(res.value.size).toBe(4)
+      expect(res.value.dictionary).toBe("dictionary")
+    }
   })
 
-  it("rejects invalid letters (case, length, duplicates)", (): void => {
-    const resUpper = validateLetters("Cadevrsoi")
-    const resShort = validateLetters("abc")
-    const resLong = validateLetters("abcdefghijk")
-    const resDuplicate = validateLetters("caadevrso")
+  it("rejects invalid size values through the public validator", (): void => {
+    const tooSmall = validateCliArgs({ size: 3, letters: "cadevrsoi" })
+    const tooLarge = validateCliArgs({ size: 10, letters: "cadevrsoi" })
+    const notInt = validateCliArgs({ size: 5.5, letters: "cadevrsoi" })
+    const invalidString = validateCliArgs({ size: "abc", letters: "cadevrsoi" })
 
-    expect(resUpper.ok).toBe(false)
-    expect(resShort.ok).toBe(false)
-    expect(resLong.ok).toBe(false)
-    expect(resDuplicate.ok).toBe(false)
+    expect(tooSmall.ok).toBe(false)
+    expect(tooLarge.ok).toBe(false)
+    expect(notInt.ok).toBe(false)
+    expect(invalidString.ok).toBe(false)
+  })
+
+  it("rejects invalid letters through the public validator", (): void => {
+    const missingUndefined = validateCliArgs({ size: 4 })
+    const missingEmpty = validateCliArgs({ size: 4, letters: "" })
+    const upper = validateCliArgs({ size: 4, letters: "Cadevrsoi" })
+    const short = validateCliArgs({ size: 4, letters: "abc" })
+    const long = validateCliArgs({ size: 4, letters: "abcdefghijk" })
+    const duplicate = validateCliArgs({ size: 4, letters: "caadevrso" })
+
+    expect(missingUndefined.ok).toBe(false)
+    expect(missingEmpty.ok).toBe(false)
+    expect(upper.ok).toBe(false)
+    expect(short.ok).toBe(false)
+    expect(long.ok).toBe(false)
+    expect(duplicate.ok).toBe(false)
   })
 
   it("accumulates multiple validation errors simultaneously", (): void => {
@@ -68,10 +69,8 @@ describe("applicative validation", (): void => {
 
     expect(res.ok).toBe(false)
     if (!res.ok) {
-      expect(res.errors.length).toBeGreaterThanOrEqual(2)
       const types = res.errors.map((e) => e.type)
-      expect(types).toContain("invalid_size")
-      expect(types).toContain("invalid_letters")
+      expect(types).toEqual(["invalid_size", "invalid_letters"])
     }
   })
 
@@ -94,10 +93,15 @@ describe("applicative validation", (): void => {
       type: "unexpected_argument",
       detail: "--unknown",
     })
+    const msgPuzzle = formatValidationError({
+      type: "invalid_puzzle",
+      detail: "Puzzle configuration violated domain invariants.",
+    })
 
     expect(msgSize).toContain("Invalid size '2'")
     expect(msgLetters).toContain("Invalid letters 'abc'")
     expect(msgMissing).toContain("Missing required option")
+    expect(msgPuzzle).toContain("Invalid puzzle configuration")
     expect(msgUnexpected).toContain("Unexpected argument: --unknown")
   })
 })

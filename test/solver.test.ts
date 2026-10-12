@@ -46,4 +46,21 @@ describe("streaming solver", (): void => {
 
     expect(matches).toEqual([])
   })
+
+  it("matches dictionary words case-sensitively", async (): Promise<void> => {
+    const stream = createAsyncStream([
+      "DISCOVER",
+      "discover",
+      "Codrive",
+      "SHORT",
+      "cat",
+    ])
+
+    const matches: string[] = []
+    for await (const match of solve(puzzle, stream)) {
+      matches.push(match)
+    }
+
+    expect(matches).toEqual(["discover"])
+  })
 })
