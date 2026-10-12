@@ -91,6 +91,18 @@ varicose
 viscera
 ```
 
+### Error Reporting Example
+
+The CLI reports all discovered problems before returning to the user instead of
+stopping at the first invalid argument:
+
+```text
+$ npx tsx src/cli.ts --invalid -s 2 -l abc
+Error: Unexpected argument: Unknown option '--invalid'.
+Error: Invalid size '2': size must be an integer between 4 and 9.
+Error: Invalid letters 'abc': Letters must contain between 4 and 9 characters.
+```
+
 ## Dictionary Setup
 
 The default dictionary file is `./dictionary`. A dictionary can be prepared from
@@ -101,9 +113,22 @@ make dictionary
 ```
 
 This filters `/usr/share/dict/words` to retain only lowercase alphabetic words
-with four or more characters, while stripping Roman numerals. Dictionary
-entries are processed exactly as they appear in the file; the solver does not
-normalise or lowercase them before matching.
+with four or more characters, while stripping Roman numerals. Dictionary entries
+are processed exactly as they appear in the file; the solver does not normalise
+or lowercase them before matching.
+
+## Why this architecture?
+
+This project follows a strict separation between the effectful shell and the
+pure domain core:
+
+- the CLI shell handles argument parsing, file I/O, stream management, and exit
+  codes
+- the domain core validates inputs, enforces invariants, and decides whether a
+  candidate word matches the puzzle rules
+
+This separation keeps behaviour easy to test, makes validation deterministic,
+and avoids mixing business rules with filesystem or terminal concerns.
 
 ## Development Workflow
 
@@ -192,30 +217,34 @@ ways:
 
 The sequence diagram below illustrates the end-to-end execution flow from
 command invocation and applicative validation to lazy dictionary streaming and
-solution output:
+solution output. The CLI collects both argument-level and domain-level errors,
+then reports them together before returning.
 
 ```mermaid
 sequenceDiagram
   autonumber
   actor User
   participant CLI as CLI Shell (src/cli.ts)
-  participant Parser as Parser (util.parseArgs)
-  participant Val as Validation (src/validation.ts)
+  participant Parser as parseCliArgs()
+  participant Val as validateCliArgs()
   participant Dict as Dictionary (node:readline)
-  participant Solver as Solver (src/solver.ts)
-  participant Pred as Predicates (src/predicates.ts)
+  participant Solver as solve()
+  participant Pred as matchesPuzzle()
   participant Stdout as stdout
+  participant Stderr as stderr
 
   User->>CLI: wordpuzzle [options]
-  CLI->>Parser: parseArgs(args)
-  Parser-->>CLI: parsed options
+  CLI->>Parser: scan raw arguments
+  Parser-->>CLI: values + collected errors
 
-  CLI->>Val: validateCliArgs(options)
-  Val-->>CLI: Result<Puzzle, ValidationError[]>
-
-  alt Validation Failure
-    CLI->>User: report errors to stderr (exit 1)
-  else Validation Success
+  alt Parse or validation errors
+    CLI->>Val: validateCliArgs(values)
+    Val-->>CLI: Result<Puzzle, ValidationError[]>
+    CLI->>Stderr: print all errors
+    CLI-->>User: exit code 1 or 2
+  else Valid input
+    CLI->>Val: validateCliArgs(values)
+    Val-->>CLI: Puzzle
     CLI->>Dict: createReadStream(dictionary)
     CLI->>Solver: solve(puzzle, stream)
     loop Each dictionary line
@@ -228,8 +257,61 @@ sequenceDiagram
         CLI->>Stdout: print word
       end
     end
-    CLI->>User: exit code 0
+    CLI-->>User: exit code 0
   end
+```
+
+## Architecture at a Glance
+
+The project separates effectful shell coordination from pure domain logic, which
+keeps validation and puzzle matching deterministic and easy to test.
+
+```mermaid
+flowchart TB
+  subgraph Shell[Effectful Shell]
+    CLI["runCli<br/>src/cli.ts"]
+    IO["stdout / stderr<br/>file streams"]
+  end
+
+  subgraph Core[Pure Core]
+    Parse[parseCliArgs]
+    Validate["validateCliArgs<br/>+ domain guards"]
+    Domain["Puzzle / branded types<br/>src/domain.ts"]
+    Solver["solve<br/>src/solver.ts"]
+    Pred["matchesPuzzle<br/>src/predicates.ts"]
+  end
+
+  CLI --> Parse
+  Parse --> Validate
+  Validate --> Domain
+  Domain --> Solver
+  Solver --> Pred
+  CLI --> IO
+  Solver --> IO
+```
+
+## Project Structure
+
+```text
+.
+├── src/
+│   ├── cli.ts            # command-line shell and exit codes
+│   ├── domain.ts         # branded types and puzzle domain model
+│   ├── validation.ts     # pure validation and error accumulation
+│   ├── predicates.ts     # puzzle matching rules
+│   ├── solver.ts         # lazy dictionary stream solver
+│   └── index.ts          # public exports
+├── test/
+│   ├── cli.test.ts       # CLI smoke tests
+│   ├── validation.test.ts # validation accumulation tests
+│   ├── properties.test.ts # property-based invariants
+│   └── ...
+├── Makefile               # default build and test orchestration
+├── package.json            # Scripts and dependencies
+├── README.md              # project overview and usage guide
+├── docs/
+│   └── REQ-001-wordpuzzle-specification.md
+└── dictionary             # generated dictionary file (optional)
 ```
 
 ## Specification and Architecture

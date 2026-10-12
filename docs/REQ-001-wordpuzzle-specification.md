@@ -33,6 +33,9 @@ lowercase entries before applying the puzzle predicates.
 - **Applicative Input Validation:** Non-short-circuiting parameter validation
   accumulating all constraint violations into a discriminated `Result` type
   before reporting to `stderr`.
+- **Collective Argument Reporting:** The CLI must report all syntax and
+  validation errors discovered in the supplied argument list before returning
+  to the user; it must not stop at the first invalid flag or missing value.
 - **9-Letter Puzzle Mode (Default):**
   - Minimum word length constraint ($4 \le size \le 9$, default: 4).
   - Maximum word length capped at 9 characters.
@@ -246,6 +249,15 @@ wordpuzzle [-s|--size INT] (-l|--letters STRING)
 - `1`: Validation error or missing dictionary file.
 - `2`: Command-line syntax error (invalid flag).
 
+### 6.4 Error Reporting Policy
+
+The CLI shell must accumulate argument-level and validation-level errors while
+walking the full input list. Unknown options, missing option values, positional
+arguments, and puzzle validation failures are all normalised into
+`ValidationError` records and emitted to `stderr` before the process returns. In
+other words, the user sees the complete diagnostic set for the submitted command
+instead of a single early failure on the first parse error.
+
 ## 7. Function Annotations & TSDoc Standards
 
 All exported functions must include complete TSDoc documentation with:
@@ -332,6 +344,10 @@ constructor invariant failures are converted into structured
 `invalid_puzzle` errors with a stable external message. Validation error
 ordering is deterministic (`invalid_size` before `invalid_letters`, then
 puzzle-level errors) so diagnostics and tests remain stable.
+
+The CLI parser also enforces a deterministic error-collection policy: raw
+argument errors and validation errors are accumulated in sequence and reported
+before the process exits, ensuring the user sees all actionable details.
 
 ## 11. Architecture Decision Note: Minimal Predicate Interface
 

@@ -5,9 +5,9 @@
 
 import { existsSync, createReadStream } from "node:fs"
 import { createInterface } from "node:readline"
-import { parseArgs } from "node:util"
 import { Writable } from "node:stream"
 import { formatValidationError, validateCliArgs } from "./validation.js"
+import { ValidationError } from "./domain.js"
 import { solve } from "./solver.js"
 
 export const VERSION = "0.1.0"
@@ -38,54 +38,139 @@ Options:
  * const exitCode = await runCli(["-s", "7", "-l", "cadevrsoi"])
  * ```
  */
+interface ParsedCliValues {
+  size?: string
+  letters?: string
+  dictionary?: string
+  repeats?: boolean
+  help?: boolean
+  version?: boolean
+}
+
+function parseCliArgs(args: readonly string[]): {
+  readonly values: ParsedCliValues
+  readonly errors: ValidationError[]
+} {
+  const errors: ValidationError[] = []
+  const values: ParsedCliValues = {}
+
+  for (let i = 0; i < args.length; i += 1) {
+    const arg = args[i]
+    if (arg === undefined) {
+      continue
+    }
+
+    if (arg === "--help" || arg === "-h") {
+      values.help = true
+      continue
+    }
+
+    if (arg === "--version" || arg === "-v") {
+      values.version = true
+      continue
+    }
+
+    if (arg === "--size" || arg === "-s") {
+      const next = args[i + 1]
+      if (next === undefined || next.startsWith("-")) {
+        errors.push({
+          type: "unexpected_argument",
+          detail: "Option '--size' requires a value.",
+        })
+      } else {
+        values.size = next
+        i += 1
+      }
+      continue
+    }
+
+    if (arg === "--letters" || arg === "-l") {
+      const next = args[i + 1]
+      if (next === undefined || next.startsWith("-")) {
+        errors.push({
+          type: "unexpected_argument",
+          detail: "Option '--letters' requires a value.",
+        })
+      } else {
+        values.letters = next
+        i += 1
+      }
+      continue
+    }
+
+    if (arg === "--dictionary" || arg === "-d") {
+      const next = args[i + 1]
+      if (next === undefined || next.startsWith("-")) {
+        errors.push({
+          type: "unexpected_argument",
+          detail: "Option '--dictionary' requires a value.",
+        })
+      } else {
+        values.dictionary = next
+        i += 1
+      }
+      continue
+    }
+
+    if (arg === "--repeats" || arg === "-r") {
+      values.repeats = true
+      continue
+    }
+
+    if (arg.startsWith("-")) {
+      errors.push({
+        type: "unexpected_argument",
+        detail: `Unknown option '${arg}'.`,
+      })
+      continue
+    }
+
+    errors.push({
+      type: "unexpected_argument",
+      detail: `Unexpected positional argument '${arg}'.`,
+    })
+  }
+
+  return { values, errors }
+}
+
 export async function runCli(
   args: readonly string[],
   stdout: Writable = process.stdout,
   stderr: Writable = process.stderr,
 ): Promise<number> {
-  let parsed
-  try {
-    parsed = parseArgs({
-      args: [...args],
-      options: {
-        size: { type: "string", short: "s" },
-        letters: { type: "string", short: "l" },
-        dictionary: { type: "string", short: "d" },
-        repeats: { type: "boolean", short: "r" },
-        help: { type: "boolean", short: "h" },
-        version: { type: "boolean", short: "v" },
-      },
-      strict: true,
-      allowPositionals: false,
-    })
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err)
-    stderr.write(`Error: ${message}\n`)
-    return 2
-  }
+  const { values, errors } = parseCliArgs(args)
 
-  if (parsed.values.help) {
+  if (values.help) {
     stdout.write(HELP_TEXT)
     return 0
   }
 
-  if (parsed.values.version) {
+  if (values.version) {
     stdout.write(`${VERSION}\n`)
     return 0
   }
 
   const validationResult = validateCliArgs({
-    size: parsed.values.size,
-    letters: parsed.values.letters,
-    dictionary: parsed.values.dictionary,
-    repeats: parsed.values.repeats,
+    size: values.size,
+    letters: values.letters,
+    dictionary: values.dictionary,
+    repeats: values.repeats,
   })
 
   if (!validationResult.ok) {
-    for (const error of validationResult.errors) {
-      stderr.write(`${formatValidationError(error)}\n`)
+    const allErrors = [...errors, ...validationResult.errors]
+    for (const error of allErrors) {
+      stderr.write(`Error: ${formatValidationError(error)}\n`)
     }
-    return 1
+    return errors.length > 0 ? 2 : 1
+  }
+
+  if (errors.length > 0) {
+    for (const error of errors) {
+      stderr.write(`Error: ${formatValidationError(error)}\n`)
+    }
+    return 2
   }
 
   const puzzle = validationResult.value

@@ -67,6 +67,26 @@ describe("CLI entrypoint and exit codes", (): void => {
     expect(stderr.getOutput()).toContain("Invalid letters 'abc'")
   })
 
+  it(
+    "reports all parse and validation errors " + "before exiting",
+    async (): Promise<void> => {
+      const stdout = createCapture()
+      const stderr = createCapture()
+
+      const exitCode = await runCli(
+        ["--invalid", "-s", "2", "-l", "abc"],
+        stdout.stream,
+        stderr.stream,
+      )
+
+      const output = stderr.getOutput()
+      expect(exitCode).toBe(2)
+      expect(output).toContain("Unknown option '--invalid'.")
+      expect(output).toContain("Invalid size '2'")
+      expect(output).toContain("Invalid letters 'abc'")
+    },
+  )
+
   it("exits with code 1 on missing dictionary", async (): Promise<void> => {
     const stdout = createCapture()
     const stderr = createCapture()
