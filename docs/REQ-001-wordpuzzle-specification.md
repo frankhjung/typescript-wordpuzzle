@@ -134,21 +134,23 @@ The codebase adheres strictly to the **Pure Core, Effectful Shell** paradigm:
 ```mermaid
 flowchart TD
     subgraph "Effectful Shell (CLI & I/O)"
-        CLI["CLI Entrypoint (src/cli.ts)"]
-        PARSE["CLI Parser (parseCliArgs)"]
+        CLI["CLI Entrypoint (runCli)"]
         FS["node:readline File Stream"]
         OUT["process.stdout / process.stderr"]
     end
 
     subgraph "Pure Core (Domain Logic)"
+        EVAL["CLI Evaluator (evaluateCli)"]
+        PARSE["CLI Parser (parseCliArgs)"]
         VAL["Validation (src/validation.ts)"]
         DOM["Domain Models (src/domain.ts)"]
         PRED["Matching Predicates (src/predicates.ts)"]
         SOLV["Pure Solver Pipeline (src/solver.ts)"]
     end
 
-    CLI --> PARSE
-    PARSE --> VAL
+    CLI --> EVAL
+    EVAL --> PARSE
+    EVAL --> VAL
     VAL --> DOM
     DOM --> SOLV
     SOLV --> PRED
@@ -164,8 +166,10 @@ flowchart TD
   interface (`matchesPuzzle`) and internal rule composition.
 - **`src/solver.ts`:** Pure async generator / transformer filtering an
   `AsyncIterable<string>` of words against a validated `Puzzle`.
-- **`src/cli.ts`:** Imperative shell reading arguments, invoking validation,
-  opening file streams, writing output lines, and setting exit codes.
+- **`src/cli.ts`:** Hybrid module containing the pure action evaluator
+  (`evaluateCli`) returning `CliAction` and the thin imperative shell (`runCli`)
+  dispatching to streams and exit codes (refined in
+  [REQ-002](REQ-002-pure-cli-action-evaluator.md)).
 
 ## 5. Data Modelling & Strict Type Safety
 
@@ -363,6 +367,10 @@ collective reporting mandate, the shell implements a table-driven scanner
 (`parseCliArgs`) that walks the argument vector, records all unknown flags,
 missing values, and positionals into `ValidationError` records, and combines
 them with applicative domain validation errors.
+
+As refined in [REQ-002](REQ-002-pure-cli-action-evaluator.md), this scanner is
+encapsulated within the pure `evaluateCli` function returning a `CliAction` ADT,
+ensuring argument evaluation remains referentially transparent.
 
 ## 11. Architecture Decision Note: Minimal Predicate Interface
 

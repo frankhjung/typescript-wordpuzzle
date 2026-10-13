@@ -6,6 +6,13 @@ An error-handling strategy that validates all command-line parameters
 simultaneously, accumulating every constraint violation into a list or array
 rather than terminating upon encountering the first failure.
 
+## Command-Line Action
+
+A discriminated algebraic data variant representing the pure outcome of
+evaluating command-line arguments (such as displaying help, printing the
+version, emitting diagnostics with an exit code, or executing a puzzle solve),
+decoupled from console and stream I/O.
+
 ## Dictionary
 
 A line-delimited text source providing candidate words evaluated against a
@@ -64,6 +71,13 @@ system access and console output.
 
 A domain data variant representing a specific configuration or command-line
 argument failure, such as an out-of-range word size or invalid letter pool.
+
+## Valid Word
+
+A candidate word from the dictionary that satisfies all puzzle constraints and
+invariants, represented in the domain model as a branded string nominal type.
+
+_Avoid_: matching word, solution word
 
 ## Word Size
 

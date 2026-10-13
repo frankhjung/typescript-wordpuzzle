@@ -7,7 +7,7 @@ import { existsSync, createReadStream } from "node:fs"
 import { createInterface } from "node:readline"
 import { Writable } from "node:stream"
 import { formatValidationError, validateCliArgs } from "./validation.js"
-import { ValidationError } from "./domain.js"
+import { assertNever, Puzzle, ValidationError } from "./domain.js"
 import { solve } from "./solver.js"
 
 export const VERSION = "0.1.0"
@@ -26,18 +26,33 @@ Options:
 `
 
 /**
- * Executes the word puzzle CLI with supplied arguments and output streams.
- * Effectful shell coordinating argument parsing, file reading, and console I/O.
- *
- * @param args - Command-line argument vector (excluding node and script paths).
- * @param stdout - Output stream for solutions, help text, and version display.
- * @param stderr - Error stream for diagnostic and validation error reporting.
- * @returns Promise resolving to program exit code (0, 1, or 2).
- * @example
- * ```ts
- * const exitCode = await runCli(["-s", "7", "-l", "cadevrsoi"])
- * ```
+ * Discriminated algebraic data variants representing the outcome of evaluating
+ * command-line arguments.
  */
+export type CliAction =
+  | {
+      /** User requested command usage help text. */
+      readonly type: "help"
+      readonly text: string
+    }
+  | {
+      /** User requested program version display. */
+      readonly type: "version"
+      readonly text: string
+    }
+  | {
+      /** Argument parsing or applicative validation encountered failures. */
+      readonly type: "error"
+      readonly exitCode: 1 | 2
+      readonly errors: readonly ValidationError[]
+      readonly messages: readonly string[]
+    }
+  | {
+      /** Arguments successfully validated into an executable puzzle. */
+      readonly type: "solve"
+      readonly puzzle: Puzzle
+    }
+
 interface ParsedCliValues {
   size?: string
   letters?: string
@@ -67,7 +82,7 @@ const VALUE_OPTIONS: Readonly<Record<string, StringOptionKey>> = {
  */
 function parseCliArgs(args: readonly string[]): {
   readonly values: ParsedCliValues
-  readonly errors: ValidationError[]
+  readonly errors: readonly ValidationError[]
 } {
   const errors: ValidationError[] = []
   const values: ParsedCliValues = {}
@@ -126,21 +141,26 @@ function parseCliArgs(args: readonly string[]): {
   return { values, errors }
 }
 
-export async function runCli(
-  args: readonly string[],
-  stdout: Writable = process.stdout,
-  stderr: Writable = process.stderr,
-): Promise<number> {
+/**
+ * Evaluates command-line arguments into a pure domain action.
+ * Pure function with referential transparency.
+ *
+ * @param args - Raw command-line argument vector.
+ * @returns Discriminated CliAction indicating the requested operation.
+ * @example
+ * ```ts
+ * const action = evaluateCli(["-s", "7", "-l", "cadevrsoi"])
+ * ```
+ */
+export function evaluateCli(args: readonly string[]): CliAction {
   const { values, errors } = parseCliArgs(args)
 
   if (values.help) {
-    stdout.write(HELP_TEXT)
-    return 0
+    return { type: "help", text: HELP_TEXT }
   }
 
   if (values.version) {
-    stdout.write(`${VERSION}\n`)
-    return 0
+    return { type: "version", text: `${VERSION}\n` }
   }
 
   const validationResult = validateCliArgs({
@@ -154,32 +174,86 @@ export async function runCli(
     const allErrors = validationResult.ok
       ? errors
       : [...errors, ...validationResult.errors]
-    for (const error of allErrors) {
-      stderr.write(`Error: ${formatValidationError(error)}\n`)
+    const messages = allErrors.map(
+      (error): string => `Error: ${formatValidationError(error)}`,
+    )
+    return {
+      type: "error",
+      exitCode: errors.length > 0 ? 2 : 1,
+      errors: allErrors,
+      messages,
     }
-    return errors.length > 0 ? 2 : 1
   }
 
-  const puzzle = validationResult.value
-
-  if (!existsSync(puzzle.dictionary)) {
-    stderr.write(`Dictionary file not found: '${puzzle.dictionary}'.\n`)
-    return 1
+  return {
+    type: "solve",
+    puzzle: validationResult.value,
   }
+}
 
-  const stream = createReadStream(puzzle.dictionary, { encoding: "utf-8" })
-  const rl = createInterface({ input: stream, crlfDelay: Infinity })
+/**
+ * Executes the word puzzle CLI with supplied arguments and output streams.
+ * Effectful shell dispatching the evaluated action to console I/O and streams.
+ *
+ * @param args - Command-line argument vector (excluding node and script paths).
+ * @param stdout - Output stream for solutions, help text, and version display.
+ * @param stderr - Error stream for diagnostic and validation error reporting.
+ * @returns Promise resolving to program exit code (0, 1, or 2).
+ * @example
+ * ```ts
+ * const exitCode = await runCli(["-s", "7", "-l", "cadevrsoi"])
+ * ```
+ */
+export async function runCli(
+  args: readonly string[],
+  stdout: Writable = process.stdout,
+  stderr: Writable = process.stderr,
+): Promise<number> {
+  const action = evaluateCli(args)
 
-  try {
-    for await (const match of solve(puzzle, rl)) {
-      stdout.write(`${match}\n`)
+  switch (action.type) {
+    case "help":
+      stdout.write(action.text)
+      return 0
+
+    case "version":
+      stdout.write(action.text)
+      return 0
+
+    case "error":
+      for (const message of action.messages) {
+        stderr.write(`${message}\n`)
+      }
+      return action.exitCode
+
+    case "solve": {
+      if (!existsSync(action.puzzle.dictionary)) {
+        stderr.write(
+          `Dictionary file not found: '${action.puzzle.dictionary}'.\n`,
+        )
+        return 1
+      }
+
+      const stream = createReadStream(action.puzzle.dictionary, {
+        encoding: "utf-8",
+      })
+      const rl = createInterface({ input: stream, crlfDelay: Infinity })
+
+      try {
+        for await (const match of solve(action.puzzle, rl)) {
+          stdout.write(`${match}\n`)
+        }
+      } finally {
+        rl.close()
+        stream.destroy()
+      }
+
+      return 0
     }
-  } finally {
-    rl.close()
-    stream.destroy()
-  }
 
-  return 0
+    default:
+      return assertNever(action)
+  }
 }
 
 /* v8 ignore start */

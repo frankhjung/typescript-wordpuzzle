@@ -117,15 +117,16 @@ with four or more characters, while stripping Roman numerals. Dictionary entries
 are processed exactly as they appear in the file; the solver does not normalise
 or lowercase them before matching.
 
-## Why this architecture?
+## Why This Architecture?
 
 This project follows a strict separation between the effectful shell and the
 pure domain core:
 
-- the CLI shell handles argument parsing, file I/O, stream management, and exit
-  codes
-- the domain core validates inputs, enforces invariants, and decides whether a
-  candidate word matches the puzzle rules
+- the CLI shell (`runCli`) dispatches actions to streams, manages file I/O, and
+  sets exit codes
+- the pure domain core (`evaluateCli`, validation, models, and solver)
+  evaluates arguments into actions, enforces invariants, and matches candidate
+  words
 
 This separation keeps behaviour easy to test, makes validation deterministic,
 and avoids mixing business rules with filesystem or terminal concerns.
@@ -218,15 +219,16 @@ ways:
 ## Execution Flow
 
 The sequence diagram below illustrates the end-to-end execution flow from
-command invocation and applicative validation to lazy dictionary streaming and
-solution output. The CLI collects both argument-level and domain-level errors,
-then reports them together before returning.
+command invocation and pure evaluation to lazy dictionary streaming and
+solution output. The evaluator collects both argument-level and domain-level
+errors into a pure action before the shell performs effectful reporting.
 
 ```mermaid
 sequenceDiagram
     autonumber
     actor User
-    participant CLI as CLI Shell (src/cli.ts)
+    participant CLI as CLI Shell (runCli)
+    participant Eval as evaluateCli()
     participant Parser as parseCliArgs()
     participant Val as validateCliArgs()
     participant Dict as Dictionary (node:readline)
@@ -236,15 +238,20 @@ sequenceDiagram
     participant Stderr as stderr
 
     User->>CLI: wordpuzzle [options]
-    CLI->>Parser: scan raw arguments
-    Parser-->>CLI: values + collected errors
-    CLI->>Val: validateCliArgs(values)
-    Val-->>CLI: Result<Puzzle, ValidationError[]>
+    CLI->>Eval: evaluateCli(args)
+    Eval->>Parser: scan raw arguments
+    Parser-->>Eval: values + collected errors
+    Eval->>Val: validateCliArgs(values)
+    Val-->>Eval: Result<Puzzle, ValidationError>
+    Eval-->>CLI: CliAction
 
-    alt Parse or validation errors
-        CLI->>Stderr: print all errors
+    alt Action: Error (status 1 or 2)
+        CLI->>Stderr: print all formatted errors
         CLI-->>User: exit code 1 or 2
-    else Valid input
+    else Action: Help or Version (status 0)
+        CLI->>Stdout: print text
+        CLI-->>User: exit code 0
+    else Action: Solve (status 0)
         CLI->>Dict: createReadStream(dictionary)
         CLI->>Solver: solve(puzzle, stream)
         loop Each dictionary line
@@ -274,6 +281,7 @@ flowchart TB
     end
 
     subgraph Core[Pure Core]
+        Eval["evaluateCli<br/>CliAction ADT"]
         Parse[parseCliArgs]
         Validate["validateCliArgs<br/>+ domain guards"]
         Domain["Puzzle / branded types<br/>src/domain.ts"]
@@ -281,8 +289,9 @@ flowchart TB
         Pred["matchesPuzzle<br/>src/predicates.ts"]
     end
 
-    CLI --> Parse
-    Parse --> Validate
+    CLI --> Eval
+    Eval --> Parse
+    Eval --> Validate
     Validate --> Domain
     Domain --> Solver
     Solver --> Pred
@@ -295,14 +304,14 @@ flowchart TB
 ```text
 .
 ├── src/
-│   ├── cli.ts            # command-line shell and exit codes
+│   ├── cli.ts            # command-line shell and pure evaluator
 │   ├── domain.ts         # branded types and puzzle domain model
 │   ├── validation.ts     # pure validation and error accumulation
 │   ├── predicates.ts     # puzzle matching rules
 │   ├── solver.ts         # lazy dictionary stream solver
 │   └── index.ts          # public exports
 ├── test/
-│   ├── cli.test.ts       # CLI smoke tests
+│   ├── cli.test.ts       # CLI smoke and pure evaluator tests
 │   ├── validation.test.ts # validation accumulation tests
 │   ├── properties.test.ts # property-based invariants
 │   └── ...
@@ -310,7 +319,8 @@ flowchart TB
 ├── package.json            # Scripts and dependencies
 ├── README.md              # project overview and usage guide
 ├── docs/
-│   └── REQ-001-wordpuzzle-specification.md
+│   ├── REQ-001-wordpuzzle-specification.md
+│   └── REQ-002-pure-cli-action-evaluator.md
 └── dictionary             # generated dictionary file (optional)
 ```
 
@@ -320,8 +330,10 @@ For comprehensive functional specifications, mathematical models, and property
 testing invariants, refer to:
 
 - [REQ-001: Word Puzzle Solver Specification][req-001]
+- [REQ-002: Pure CLI Action Evaluator][req-002]
 - [GLOSSARY.md](GLOSSARY.md)
 
 [haskell-repo]: https://github.com/frankhjung/haskell-wordpuzzle
 [req-001]: docs/REQ-001-wordpuzzle-specification.md
+[req-002]: docs/REQ-002-pure-cli-action-evaluator.md
 [spellements]: https://www.scientificamerican.com/game/spellements/
