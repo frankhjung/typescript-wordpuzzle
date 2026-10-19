@@ -60,9 +60,10 @@ lowercase entries before applying the puzzle predicates.
   testing with `fast-check` paired with `vitest`.
 - **Centralised Build Automation:** GNU Makefile wrapping `help`, `format`,
   `lint`, `check`, `build`, `test`, `clean`, `dictionary`, and `run`.
-- **Continuous Integration:** GitHub Actions pipeline verifying formatting,
-  linting, strict type checking, unit tests, property tests, and smoke
-  execution.
+- **Continuous Integration and Deployment:** GitHub Actions pipeline
+  verifying formatting, linting, strict type checking, unit tests, property
+  tests, smoke execution, and deploying the compiled production distribution
+  (`dist/`) to GitHub Pages.
 
 ### 2.2 Non-Goals
 

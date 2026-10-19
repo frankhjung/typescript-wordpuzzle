@@ -1,18 +1,23 @@
 ---
-name: build
+name: Deploy Solver to Pages
 
 on:
   push:
-    branches:
-      - "**"
-  pull_request:
-    branches:
-      - main
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -45,10 +50,37 @@ jobs:
         run: npx tsx src/cli.ts -s 7 -l cadevrsoi
 
       - name: Compile production distribution
-        run: npx tsc -p tsconfig.build.json
+        run: npm run build
 
       - name: Upload production distribution artifact
         uses: actions/upload-artifact@v4
         with:
           name: dist
           path: dist
+
+      - name: Setup Pages
+        if: >-
+          github.ref == 'refs/heads/main' &&
+          github.event_name != 'pull_request'
+        uses: actions/configure-pages@v5
+
+      - name: Upload Pages artifact
+        if: >-
+          github.ref == 'refs/heads/main' &&
+          github.event_name != 'pull_request'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    name: Deploy to GitHub Pages
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
