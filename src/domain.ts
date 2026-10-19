@@ -197,6 +197,15 @@ export type ValidationError =
       readonly type: "unexpected_argument"
       readonly detail: string
     }
+  | {
+      /** The mandatory letter input was missing or empty. */
+      readonly type: "missing_mandatory"
+    }
+  | {
+      /** The mandatory letter was not a single lowercase ASCII character. */
+      readonly type: "invalid_mandatory"
+      readonly actual: string
+    }
 
 /**
  * Represents the outcome of an operation that can succeed with a value or fail

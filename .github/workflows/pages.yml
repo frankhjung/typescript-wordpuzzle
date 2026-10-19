@@ -52,6 +52,17 @@ jobs:
       - name: Compile production distribution
         run: npm run build
 
+      - name: Smoke test web distribution assets
+        run: |
+          test -f dist/index.html
+          test -f dist/style.css
+          test -f dist/favicon.png
+          test -f dist/favicon.ico
+          test -f dist/dictionary
+          test -f dist/dictionary.js
+          test -f dist/app.js
+          test -f dist/web/app.js
+
       - name: Upload production distribution artifact
         uses: actions/upload-artifact@v4
         with:

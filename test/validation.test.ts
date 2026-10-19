@@ -97,11 +97,20 @@ describe("applicative validation", (): void => {
       type: "invalid_puzzle",
       detail: "Puzzle configuration violated domain invariants.",
     })
+    const msgMandatoryMissing = formatValidationError({
+      type: "missing_mandatory",
+    })
+    const msgMandatoryInvalid = formatValidationError({
+      type: "invalid_mandatory",
+      actual: "1",
+    })
 
     expect(msgSize).toContain("Invalid size '2'")
     expect(msgLetters).toContain("Invalid letters 'abc'")
     expect(msgMissing).toContain("Missing required option")
     expect(msgPuzzle).toContain("Invalid puzzle configuration")
     expect(msgUnexpected).toContain("Unexpected argument: --unknown")
+    expect(msgMandatoryMissing).toContain("Missing required mandatory letter")
+    expect(msgMandatoryInvalid).toContain("Invalid mandatory letter '1'")
   })
 })

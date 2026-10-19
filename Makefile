@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := default
-.PHONY: help format lint check test build package clean dictionary run
+.PHONY: help format lint check test parity build package clean dictionary run serve
 
 SHELL := bash
 .SHELLFLAGS := -euo pipefail -c
@@ -13,7 +13,7 @@ help: ## Display available targets and descriptions
 		$(MAKEFILE_LIST)
 	npx tsx src/cli.ts --help
 
-default: format lint build test	## Default: format, lint, build and test
+default: format lint check build test	## Default: format, lint, build and test
 
 format: ## Format all tracked source and config files using Prettier
 	npx prettier --write .
@@ -27,8 +27,22 @@ check: ## Verify types without emitting compiled output
 test: ## Execute unit and fast-check property tests
 	npx vitest run
 
-build: check ## Compile TypeScript to JavaScript distribution
-	npx tsc -p tsconfig.build.json
+parity: ## Verify web solver differential parity against CLI solver
+	npx vitest run test/web-parity.test.ts
+
+build: check ## Compile TypeScript and assemble static web distribution
+	@node scripts/generate-dict.js
+	@npx tsc -p tsconfig.build.json
+	@mkdir -p dist
+	@cp -r static/* dictionary dist/
+	@npx esbuild src/web/app.ts --bundle --format=iife --outfile=dist/app.js
+
+run: ## Run solver with sample input
+	npx tsx src/cli.ts -s 4 -r -l eloixbk
+
+serve: build ## Run local HTTP development server on port 8080
+	@echo "Serving dist/ on http://localhost:8080..."
+	@python3 -m http.server 8080 --directory dist
 
 package: build ## Package dist/ build artefacts into wordpuzzle tarball
 	npm pack
@@ -46,6 +60,3 @@ else
 	  | sort -u > dictionary
 	@echo "Dictionary created: $$(wc -l < dictionary) words"
 endif
-
-run: ## Run solver with sample input
-	npx tsx src/cli.ts -s 7 -l cadevrsoi

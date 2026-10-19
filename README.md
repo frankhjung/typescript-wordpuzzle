@@ -4,10 +4,10 @@ Solve 9-letter word puzzles and Spelling Bee word games using modern,
 idiomatically typed TypeScript:
 
 - [Nine Letter Word](http://nineletterword.tompaton.com/adevcrsoi/)
-- [Your Word Life](http://www.yourwiselife.com.au/games/9-letter-word/)
-- [NYT Spelling Bee](https://www.nytimes.com/puzzles/spelling-bee) (using
-  `--repeats`)
+- [NYT Spelling Bee](https://www.nytimes.com/puzzles/spelling-bee)
+  (using `--repeats`)
 - [Scientific American Spellements][spellements] (using `--repeats`)
+- [Your Word Life](http://www.yourwiselife.com.au/games/9-letter-word/)
 
 This project is a TypeScript implementation of the canonical Haskell word puzzle
 solver available at [haskell-wordpuzzle][haskell-repo].
@@ -47,9 +47,16 @@ npx tsx src/cli.ts -s 7 -l mitncao -r
 Using the `Makefile` convenience wrapper:
 
 ```bash
-# Run the default sample puzzle
+# Run the default sample puzzle in the CLI
 make run
+
+# Build distribution and launch local web application server
+make serve
 ```
+
+Open `http://localhost:8080` in your browser to interact with the web interface.
+Alternatively, open `dist/index.html` directly in your browser without any web
+server.
 
 ## Command-Line Interface
 
@@ -144,7 +151,9 @@ Centralised development tasks are orchestrated via the root `Makefile`:
 | `make lint`       | `npx eslint .`     | Run ESLint static analysis                 |
 | `make check`      | `npx tsc --noEmit` | Perform static type checking               |
 | `make test`       | `npx vitest run`   | Execute unit and property tests            |
+| `make parity`     | `npx vitest ...`   | Verify web differential parity against CLI |
 | `make build`      | `npx tsc -p ...`   | Compile TypeScript into `dist/`            |
+| `make serve`      | `python3 ...`      | Serve web app on http://localhost:8080     |
 | `make package`    | `npm pack`         | Package `dist/` into tarball               |
 | `make clean`      | `rm -rf dist/ ...` | Remove build and coverage artefacts        |
 | `make dictionary` | `grep ...`         | Filter 4+ letter words from dict           |
@@ -268,35 +277,71 @@ sequenceDiagram
     end
 ```
 
+## Web User Interface
+
+The repository includes a client-side single-page application matching the
+design, responsive behaviour, accessibility standards, and domain semantics of
+the [Elm word puzzle solver][elm-repo].
+
+- **Responsive Split Layout:** Interactive form controls on the left, solution
+  cards grouped by length on the right (stacked vertically on mobile).
+- **Independent Field Inputs:** Dedicated inputs for mandatory letter,
+  other letters (3–8 characters), minimum word size (4–9), and repeats toggle.
+- **Word Chips:** Solved words grouped into cards by descending length and
+  sorted alphabetically, with bold teal highlighting for the mandatory letter.
+- **Two-Tier Resilient Dictionary:** Preloaded `static/dictionary.js` enables
+  instant, offline execution, with an HTTP `fetch('./dictionary')` fallback.
+- **Zero Framework Runtime:** Driven by a pure functional state machine in
+  TypeScript implementing The Elm Architecture (`init`, `update`, `view`).
+
+To launch the local web interface preview server:
+
+```bash
+make serve
+```
+
+Alternatively, open `dist/index.html` directly in any web browser. The bundled
+application and preloaded dictionary execute completely client-side without
+requiring a web server or network connection.
+
 ## Architecture at a Glance
 
-The project separates effectful shell coordination from pure domain logic, which
-keeps validation and puzzle matching deterministic and easy to test.
+The project separates effectful shell coordination from pure domain logic,
+keeping validation and puzzle matching deterministic and testable.
 
 ```mermaid
 flowchart TB
-    subgraph Shell[Effectful Shell]
-        CLI["runCli<br/>src/cli.ts"]
+    subgraph Shell[Effectful Shells]
+        CLI["CLI: runCli<br/>src/cli.ts"]
+        WEB["Browser: initApp<br/>src/web/app.ts"]
         IO["stdout / stderr<br/>file streams"]
+        DOM["Browser DOM<br/>src/web/view.ts"]
     end
 
-    subgraph Core[Pure Core]
+    subgraph Core[Pure Functional Core]
         Eval["evaluateCli<br/>CliAction ADT"]
-        Parse[parseCliArgs]
-        Validate["validateCliArgs<br/>+ domain guards"]
+        ValCLI["validateCliArgs<br/>src/validation.ts"]
+        ValWeb["validateWebForm<br/>src/web/validation.ts"]
+        Model["WebModel reducer<br/>src/web/model.ts"]
         Domain["Puzzle / branded types<br/>src/domain.ts"]
-        Solver["solve<br/>src/solver.ts"]
+        StreamSolver["solve (stream)<br/>src/solver.ts"]
+        MemorySolver["solveWords (in-memory)<br/>src/web/solver.ts"]
         Pred["matchesPuzzle<br/>src/predicates.ts"]
     end
 
     CLI --> Eval
-    Eval --> Parse
-    Eval --> Validate
-    Validate --> Domain
-    Domain --> Solver
-    Solver --> Pred
+    Eval --> ValCLI
+    ValCLI --> Domain
+    Domain --> StreamSolver
+    StreamSolver --> Pred
     CLI --> IO
-    CLI --> Solver
+
+    WEB --> Model
+    Model --> ValWeb
+    ValWeb --> Domain
+    Domain --> MemorySolver
+    MemorySolver --> Pred
+    WEB --> DOM
 ```
 
 ## Project Structure
@@ -306,22 +351,45 @@ flowchart TB
 ├── src/
 │   ├── cli.ts            # command-line shell and pure evaluator
 │   ├── domain.ts         # branded types and puzzle domain model
-│   ├── validation.ts     # pure validation and error accumulation
 │   ├── predicates.ts     # puzzle matching rules
 │   ├── solver.ts         # lazy dictionary stream solver
-│   └── index.ts          # public exports
+│   ├── validation.ts     # CLI validation and error accumulation
+│   ├── index.ts          # public library exports
+│   └── web/
+│       ├── app.ts        # browser bootstrap and store wiring
+│       ├── dictionary.ts # dictionary loader and parser
+│       ├── model.ts      # state model, messages, and reducer
+│       ├── solver.ts     # in-memory solver and word grouping
+│       ├── validation.ts # web form applicative validator
+│       └── view.ts       # functional DOM view renderer
+├── static/
+│   ├── index.html        # static HTML host document
+│   ├── style.css         # responsive teal/dark-mode stylesheet
+│   ├── favicon.ico       # favicon asset
+│   └── favicon.png       # PNG icon asset
+├── scripts/
+│   └── generate-dict.js  # generates static/dictionary.js
 ├── test/
 │   ├── cli.test.ts       # CLI smoke and pure evaluator tests
-│   ├── validation.test.ts # validation accumulation tests
-│   ├── properties.test.ts # property-based invariants
-│   └── ...
-├── Makefile               # default build and test orchestration
-├── package.json            # Scripts and dependencies
-├── README.md              # project overview and usage guide
+│   ├── domain.test.ts    # branded type tests
+│   ├── predicates.test.ts # puzzle matching tests
+│   ├── properties.test.ts # property-based invariant tests
+│   ├── solver.test.ts    # stream solver tests
+│   ├── validation.test.ts # CLI validation tests
+│   ├── web-parity.test.ts # parity between web and CLI solvers
+│   ├── web-properties.test.ts # web solver property tests
+│   ├── web-solver.test.ts # in-memory grouping and solver tests
+│   ├── web-validation.test.ts # web form validation tests
+│   └── web-view.test.ts  # DOM view and focus preservation tests
+├── Makefile              # task automation (run, serve, build, test)
+├── package.json          # scripts and dependencies
+├── README.md             # project overview and usage guide
+├── GLOSSARY.md           # domain vocabulary and definitions
 ├── docs/
 │   ├── REQ-001-wordpuzzle-specification.md
-│   └── REQ-002-pure-cli-action-evaluator.md
-└── dictionary             # generated dictionary file (optional)
+│   ├── REQ-002-pure-cli-action-evaluator.md
+│   └── REQ-003-web-user-interface.md
+└── dictionary            # candidate words list (63k words)
 ```
 
 ## Specification and Architecture
@@ -331,9 +399,12 @@ testing invariants, refer to:
 
 - [REQ-001: Word Puzzle Solver Specification][req-001]
 - [REQ-002: Pure CLI Action Evaluator][req-002]
+- [REQ-003: Web User Interface][req-003]
 - [GLOSSARY.md](GLOSSARY.md)
 
+[elm-repo]: https://github.com/frankhjung/elm-wordpuzzle
 [haskell-repo]: https://github.com/frankhjung/haskell-wordpuzzle
 [req-001]: docs/REQ-001-wordpuzzle-specification.md
 [req-002]: docs/REQ-002-pure-cli-action-evaluator.md
+[req-003]: docs/REQ-003-web-user-interface.md
 [spellements]: https://www.scientificamerican.com/game/spellements/

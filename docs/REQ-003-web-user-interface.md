@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 ---
 
 # Web User Interface Specification (REQ-003)
@@ -257,19 +257,19 @@ All static web assets reside in `static/`, replacing the placeholder root
     ├── favicon.png
     ├── dictionary
     ├── dictionary.js
-    └── web/
-        └── app.js
+    └── app.js
 ```
 
 ### 6.2 Build Targets in Makefile
 
 - `make check`: Type-check CLI, library, and web code with `tsc --noEmit`.
-- `make test`: Run Vitest unit, property, and parity suites.
+- `make test`: Run Vitest unit, property, parity, and DOM view suites.
 - `make build`:
   1. Executes `make check`.
   2. Generates `static/dictionary.js` via `node scripts/generate-dict.js`.
   3. Compiles TypeScript sources to `dist/`.
   4. Copies `static/*` and `dictionary` into `dist/`.
+  5. Bundles browser client into `dist/app.js` using `esbuild`.
 - `make run`: Executes the CLI sample puzzle (preserving [REQ-001][req-001]
   compatibility).
 - `make serve`: Builds the distribution and starts a local HTTP preview server

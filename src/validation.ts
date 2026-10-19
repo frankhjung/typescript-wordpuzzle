@@ -200,6 +200,13 @@ export function formatValidationError(error: ValidationError): string {
       return `Invalid puzzle configuration: ${error.detail}`
     case "unexpected_argument":
       return `Unexpected argument: ${error.detail}`
+    case "missing_mandatory":
+      return "Missing required mandatory letter."
+    case "invalid_mandatory":
+      return (
+        `Invalid mandatory letter '${error.actual}': ` +
+        "mandatory letter must be a single lowercase letter ('a' to 'z')."
+      )
     default:
       return assertNever(error)
   }
